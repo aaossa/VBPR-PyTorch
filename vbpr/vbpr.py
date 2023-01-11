@@ -1,5 +1,5 @@
-"""VBPR implementation in PyTorch
-"""
+"""This module contains a VBPR implementation in PyTorch."""
+
 from typing import Optional, Tuple, cast
 
 import torch
@@ -7,9 +7,15 @@ from torch import nn
 
 
 class VBPR(nn.Module):
-    """VBPR model architecture from 'VBPR: Visual Bayesian
-    Personalized Ranking from Implicit Feedback'.
-    """
+    """This class represents the VBPR model as a PyTorch nn.Module.
+
+    The implementation follows the specifications of the original paper:
+    'VBPR: Visual Bayesian Personalized Ranking from Implicit Feedback'
+
+    NOTE: The model contains the (pretrained)  visual features as a layer to
+    improve performance. Another possible implementation of this would be to
+    store the features in the Dataset class and pass the emebddings to the
+    forward method."""
 
     def __init__(
         self,

@@ -1,4 +1,4 @@
-"""This is the Tradesy dataset"""
+"""This module contains the Tradesy dataset as a PyTorch Dataset class."""
 
 from __future__ import annotations
 
@@ -19,7 +19,14 @@ TradesySample = Tuple[npt.NDArray[np.int_], npt.NDArray[np.int_], npt.NDArray[np
 
 
 class TradesyDataset(Dataset[TradesySample]):
-    """This is the Tradesy Dataset"""
+    """This class represents the Tradesy dataset as a PyTorch Dataset.
+
+    The dataset handles the interactions of the Tradesy dataset. It returns
+    interactions as a tuple of user U, a positive item I_p (consumed by U),
+    and a negative item I_n (not consumed by U).
+
+    The class contains methods to load both interactions and embeddings as
+    published at https://cseweb.ucsd.edu/~jmcauley/datasets.html#bartering_data."""
 
     def __init__(self, interactions: pd.DataFrame, random_seed: Optional[int] = None):
         self.__rng_seed = random_seed

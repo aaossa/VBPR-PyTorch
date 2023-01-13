@@ -24,7 +24,6 @@ jobs:
           flake8
       - name: isort
         run: |
-          isort .
           isort --check --diff .
       - name: mypy
         run: |

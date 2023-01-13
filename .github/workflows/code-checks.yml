@@ -18,13 +18,12 @@ jobs:
           pip install -r typed_requirements.txt
       - name: Black
         run: |
-          black . --check --diff --verbose
+          black . --check --diff --color --verbose
       - name: Flake8
         run: |
           flake8
       - name: isort
         run: |
-          isort .
           isort --check --diff .
       - name: mypy
         run: |

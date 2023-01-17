@@ -8,7 +8,7 @@ from typing import Dict, List
 import numpy as np
 import torch
 from torch import nn, optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from tqdm.autonotebook import tqdm
 
 from vbpr import VBPR
@@ -64,18 +64,18 @@ if __name__ == "__main__":
         lr=0.001,
     )
 
-    training_dataset: TradesyDataset
-    validation_dataset: TradesyDataset
-    evaluation_dataset: TradesyDataset
-    training_dataset, validation_dataset, evaluation_dataset = dataset.split()
+    training_subset: Subset[TradesySample]
+    validation_subset: Subset[TradesySample]
+    evaluation_subset: Subset[TradesySample]
+    training_subset, validation_subset, evaluation_subset = dataset.split()
     training_dataloader: DataLoader[TradesySample] = DataLoader(
-        training_dataset,
+        training_subset,
         batch_size=100,
         shuffle=True,
         num_workers=num_workers,
     )
     validation_dataloader: DataLoader[TradesySample] = DataLoader(
-        validation_dataset,
+        validation_subset,
         batch_size=100,
         shuffle=False,
         num_workers=0,
@@ -132,9 +132,21 @@ if __name__ == "__main__":
         AUC_valid = torch.zeros(dataset.n_users, device=device)
         AUC_eval = torch.zeros(dataset.n_users, device=device)
         for user in tqdm(range(dataset.n_users), desc="AUC on All Items"):
-            items_train = training_dataset.get_user_items(user)
-            items_valid = validation_dataset.get_user_items(user)
-            items_eval = evaluation_dataset.get_user_items(user)
+            items_train = (
+                training_subset.dataset.get_user_items(  # type: ignore[attr-defined]
+                    user, training_subset.indices
+                )
+            )
+            items_valid = (
+                validation_subset.dataset.get_user_items(  # type: ignore[attr-defined]
+                    user, validation_subset.indices
+                )
+            )
+            items_eval = (
+                evaluation_subset.dataset.get_user_items(  # type: ignore[attr-defined]
+                    user, evaluation_subset.indices
+                )
+            )
             user_tensor = torch.tensor([user], device=device)
 
             x_u_valid = model.recommend(

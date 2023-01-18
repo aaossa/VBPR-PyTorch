@@ -88,10 +88,7 @@ class TradesyDataset(Dataset[TradesySample]):
             interactions = self.interactions.iloc[indices]
         else:
             interactions = self.interactions
-        user_interactions = interactions.loc[
-            interactions.index.get_level_values(0) == user
-        ]
-        return user_interactions.index.get_level_values(1).values
+        return interactions.loc[(user,), :].index.values
 
     def __len__(self) -> int:
         return len(self.interactions)

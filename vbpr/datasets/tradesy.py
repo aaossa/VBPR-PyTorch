@@ -7,13 +7,13 @@ import json
 import struct
 from functools import cached_property
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import List, Optional, Tuple, Type, Union
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 
 TradesySample = Tuple[npt.NDArray[np.int_], npt.NDArray[np.int_], npt.NDArray[np.int_]]
 
@@ -41,19 +41,21 @@ class TradesyDataset(Dataset[TradesySample]):
     def n_items(self) -> int:
         return self.interactions["iid"].nunique()
 
-    def split(self, random_seed: Optional[int] = None) -> Tuple[TradesyDataset, ...]:
-        # Maybe use https://pytorch.org/docs/stable/data.html#torch.utils.data.Subset
-        splits = ("training", "validation", "evaluation")
-        interactions: Dict[str, List[pd.DataFrame]] = {key: [] for key in splits}
+    def split(
+        self,
+    ) -> Tuple[Subset[TradesySample], Subset[TradesySample], Subset[TradesySample]]:
+        train_indices: List[int] = []
+        valid_indices: List[int] = []
+        eval_indices: List[int] = []
         for user, df in self.interactions.groupby("uid"):
             df = df.sample(frac=1, random_state=self.__rng_seed)
-            interactions["training"].append(df.iloc[:-2])
-            interactions["validation"].append(df.iloc[-2:-1])
-            interactions["evaluation"].append(df.iloc[-1:])
-        random_seed = self.__rng_seed if random_seed is None else random_seed
-        return tuple(
-            TradesyDataset(pd.concat(interactions[key]), random_seed=random_seed)
-            for key in splits
+            train_indices += df.index[:-2].tolist()
+            valid_indices += df.index[-2:-1].tolist()
+            eval_indices += df.index[-1:].tolist()
+        return (
+            Subset(self, train_indices),
+            Subset(self, valid_indices),
+            Subset(self, eval_indices),
         )
 
     def __getitem__(
@@ -79,8 +81,14 @@ class TradesyDataset(Dataset[TradesySample]):
             jid[i] = negative_item
         return uid, iid, jid
 
-    def get_user_items(self, user: int) -> npt.NDArray[np.int_]:
-        return self.interactions.loc[self.interactions["uid"] == user, "iid"].to_numpy()
+    def get_user_items(
+        self, user: int, indices: Optional[List[int]] = None
+    ) -> npt.NDArray[np.int_]:
+        if indices is not None:
+            interactions = self.interactions.iloc[indices]
+        else:
+            interactions = self.interactions
+        return interactions.loc[interactions["uid"] == user, "iid"].to_numpy()
 
     def __len__(self) -> int:
         return len(self.interactions)

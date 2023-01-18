@@ -43,8 +43,12 @@ class Trainer:
         )
         return training_dl, validation_dl, evaluation_dl
 
-    def fit(self, dataset: TradesyDataset, n_epochs: int = 1) -> nn.Module:
-        training_dl, validation_dl, evaluation_dl = self.setup_dataloaders(dataset)
+    def fit(
+        self, dataset: TradesyDataset, n_epochs: int = 1, **dataloaders_kwargs: int
+    ) -> nn.Module:
+        training_dl, validation_dl, evaluation_dl = self.setup_dataloaders(
+            dataset, **dataloaders_kwargs
+        )
 
         best_auc_valid = 0.0
         best_epoch = 0

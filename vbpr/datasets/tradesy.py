@@ -31,15 +31,17 @@ class TradesyDataset(Dataset[TradesySample]):
     def __init__(self, interactions: pd.DataFrame, random_seed: Optional[int] = None):
         self.__rng_seed = random_seed
         self.__rng = np.random.default_rng(seed=self.__rng_seed)
-        self.interactions = interactions[["uid", "iid"]]
+        interactions = interactions.sort_values(["uid", "iid"])
+        interactions = interactions.set_index(["uid", "iid"])
+        self.interactions = interactions
 
     @cached_property
     def n_users(self) -> int:
-        return self.interactions["uid"].nunique()
+        return self.interactions.index.get_level_values(0).nunique()
 
     @cached_property
     def n_items(self) -> int:
-        return self.interactions["iid"].nunique()
+        return self.interactions.index.get_level_values(1).nunique()
 
     def split(
         self,
@@ -47,7 +49,7 @@ class TradesyDataset(Dataset[TradesySample]):
         train_indices: List[int] = []
         valid_indices: List[int] = []
         eval_indices: List[int] = []
-        for user, df in self.interactions.groupby("uid"):
+        for user, df in self.interactions.reset_index().groupby("uid"):
             df = df.sample(frac=1, random_state=self.__rng_seed)
             train_indices += df.index[:-2].tolist()
             valid_indices += df.index[-2:-1].tolist()
@@ -68,15 +70,13 @@ class TradesyDataset(Dataset[TradesySample]):
             idx_seq = np.array([idx])
         else:
             idx_seq = idx
-        uid = self.interactions.iloc[idx_seq, 0].to_numpy()
-        iid = self.interactions.iloc[idx_seq, 1].to_numpy()
+        indexes = self.interactions.iloc[idx_seq].index
+        uid = indexes.get_level_values(0).values
+        iid = indexes.get_level_values(1).values
         jid = np.empty_like(iid)
         for i, u in enumerate(uid):
-            consumed_items = set(
-                self.interactions.loc[self.interactions["uid"] == u, "iid"].to_numpy()
-            )
             negative_item = self.__rng.integers(self.n_items, size=1)[0]
-            while negative_item in consumed_items:
+            while (u, negative_item) in self.interactions.index:
                 negative_item = self.__rng.integers(self.n_items, size=1)[0]
             jid[i] = negative_item
         return uid, iid, jid
@@ -88,7 +88,10 @@ class TradesyDataset(Dataset[TradesySample]):
             interactions = self.interactions.iloc[indices]
         else:
             interactions = self.interactions
-        return interactions.loc[interactions["uid"] == user, "iid"].to_numpy()
+        user_interactions = interactions.loc[
+            interactions.index.get_level_values(0) == user
+        ]
+        return user_interactions.index.get_level_values(1).values
 
     def __len__(self) -> int:
         return len(self.interactions)

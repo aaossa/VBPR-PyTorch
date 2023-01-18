@@ -13,7 +13,6 @@ from vbpr import VBPR, Trainer
 from vbpr.datasets import TradesyDataset
 
 RANDOM_SEED = 0
-N_EPOCHS = 50
 TRANSACTIONS_PATH = Path("data", "Tradesy", "tradesy.json.gz")
 FEATURES_PATH = Path("data", "Tradesy", "image_features_tradesy.b")
 
@@ -23,6 +22,7 @@ if __name__ == "__main__":
     torch.manual_seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    n_epochs = 10
     num_workers = cpu_count() or 0
 
     dataset, np_features = TradesyDataset.from_files(
@@ -63,4 +63,4 @@ if __name__ == "__main__":
     )
 
     trainer = Trainer(model, optimizer, device=device)
-    trainer.fit(dataset, n_epochs=100)
+    trainer.fit(dataset, n_epochs=n_epochs, num_workers=num_workers)

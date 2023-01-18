@@ -23,7 +23,7 @@ class Trainer:
         self.device = device
 
     def setup_dataloaders(
-        self, dataset: TradesyDataset, batch_size: int = 100, num_workers: int = 0
+        self, dataset: TradesyDataset, batch_size: int = 64, num_workers: int = 0
     ) -> Tuple[
         DataLoader[TradesySample], DataLoader[TradesySample], DataLoader[TradesySample]
     ]:

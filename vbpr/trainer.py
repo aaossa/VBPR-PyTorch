@@ -93,7 +93,7 @@ class Trainer:
             # Forward step
             with torch.set_grad_enabled(True):
                 outputs = self.model(uid, iid, jid)
-                outputs = torch.reshape(outputs, (1, -1))
+                outputs = outputs.unsqueeze(0)
                 loss = -torch.nn.functional.logsigmoid(outputs).sum()
                 # Backward
                 loss.backward()

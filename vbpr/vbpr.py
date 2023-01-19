@@ -90,7 +90,7 @@ class VBPR(nn.Module):
             + diff_features.mm(self.visual_bias.weight)
         )
 
-        return cast(torch.Tensor, x_uij.unsqueeze(-1))
+        return cast(torch.Tensor, x_uij.squeeze())
 
     def recommend_all(
         self,

@@ -106,6 +106,7 @@ class VBPR(nn.Module):
 
             # Items
             i_bias = self.beta_items.weight  # Items bias
+            i_bias = i_bias.squeeze().repeat(user.size(-1), 1)
             i_latent_factors = self.gamma_items.weight  # Items visual factors
             i_features = self.features.weight  # Items visual features
             if cache is not None:
@@ -113,16 +114,19 @@ class VBPR(nn.Module):
             else:
                 visual_rating_space = i_features.mm(self.embedding.weight)
                 opinion_visual_appearance = i_features.mm(self.visual_bias.weight)
+            opinion_visual_appearance = opinion_visual_appearance.squeeze().repeat(
+                user.size(-1), 1
+            )
 
             # x_ui
             x_ui = (
                 i_bias
-                + (u_latent_factors * i_latent_factors).sum(dim=1).unsqueeze(-1)
-                + (u_visual_factors * visual_rating_space).sum(dim=1).unsqueeze(-1)
+                + torch.matmul(u_latent_factors, i_latent_factors.T)
+                + torch.matmul(u_visual_factors, visual_rating_space.T)
                 + opinion_visual_appearance
             )
 
-            return cast(torch.Tensor, x_ui)
+            return x_ui
 
     def recommend(
         self,
@@ -138,16 +142,20 @@ class VBPR(nn.Module):
 
             # Items
             i_bias = self.beta_items(items)  # Items bias
+            i_bias = i_bias.squeeze().repeat(user.size(-1), 1)
             i_latent_factors = self.gamma_items(items)  # Items visual factors
             i_features = self.features(items)  # Items visual features
             visual_rating_space = i_features.mm(self.embedding.weight)
             opinion_visual_appearance = i_features.mm(self.visual_bias.weight)
+            opinion_visual_appearance = opinion_visual_appearance.squeeze().repeat(
+                user.size(-1), 1
+            )
 
             # x_ui
             x_ui = (
                 i_bias
-                + (u_latent_factors * i_latent_factors).sum(dim=1).unsqueeze(-1)
-                + (u_visual_factors * visual_rating_space).sum(dim=1).unsqueeze(-1)
+                + torch.matmul(u_latent_factors, i_latent_factors.T)
+                + torch.matmul(u_visual_factors, visual_rating_space.T)
                 + opinion_visual_appearance
             )
 

@@ -139,7 +139,9 @@ class Trainer:
             x_u_eval = self.model.recommend(
                 user_tensor, torch.tensor(items_eval, device=self.device)
             ).item()
-            user_recommendations = self.model.recommend_all(user_tensor, cache=cache)
+            user_recommendations = self.model.recommend_all(
+                user_tensor, cache=cache
+            ).squeeze()
             max_possible = full_dataset.n_items - left_out_items.shape[0]
             seen_recommendations = user_recommendations[left_out_items]
 

@@ -1,6 +1,6 @@
 """This module contains a VBPR implementation in PyTorch."""
 
-from typing import Optional, Tuple, cast
+from typing import Optional, Tuple, Union, cast
 
 import torch
 from torch import nn
@@ -92,74 +92,98 @@ class VBPR(nn.Module):
 
         return cast(torch.Tensor, x_uij.squeeze())
 
-    def recommend_all(
-        self,
-        user: torch.Tensor,
-        cache: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-        grad_enabled: bool = False,
-    ) -> torch.Tensor:
-        """Predict score for every item, for the given user(s)"""
-        with torch.set_grad_enabled(grad_enabled):
-            # User
-            u_latent_factors = self.gamma_users(user)  # Latent factors of user u
-            u_visual_factors = self.theta_users(user)  # Visual factors of user u
-
-            # Items
-            i_bias = self.beta_items.weight  # Items bias
-            i_bias = i_bias.squeeze().repeat(user.size(-1), 1)
-            i_latent_factors = self.gamma_items.weight  # Items visual factors
-            i_features = self.features.weight  # Items visual features
-            if cache is not None:
-                visual_rating_space, opinion_visual_appearance = cache
-            else:
-                visual_rating_space = i_features.mm(self.embedding.weight)
-                opinion_visual_appearance = i_features.mm(self.visual_bias.weight)
-            opinion_visual_appearance = opinion_visual_appearance.squeeze().repeat(
-                user.size(-1), 1
-            )
-
-            # x_ui
-            x_ui = (
-                i_bias
-                + torch.matmul(u_latent_factors, i_latent_factors.T)
-                + torch.matmul(u_visual_factors, visual_rating_space.T)
-                + opinion_visual_appearance
-            )
-
-            return x_ui
-
+    @torch.no_grad()  # type: ignore[misc]
     def recommend(
         self,
-        user: torch.Tensor,
+        users: torch.Tensor,
         items: Optional[torch.Tensor] = None,
-        grad_enabled: bool = False,
+        cache: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ) -> torch.Tensor:
-        """Predict score for the given items, for the given user(s)"""
-        with torch.set_grad_enabled(grad_enabled):
-            # User
-            u_latent_factors = self.gamma_users(user)  # Latent factors of user u
-            u_visual_factors = self.theta_users(user)  # Visual factors of user u
+        """Predict score for interactions.
 
-            # Items
-            i_bias = self.beta_items(items)  # Items bias
-            i_bias = i_bias.squeeze().repeat(user.size(-1), 1)
-            i_latent_factors = self.gamma_items(items)  # Items visual factors
-            i_features = self.features(items)  # Items visual features
-            visual_rating_space = i_features.mm(self.embedding.weight)
-            opinion_visual_appearance = i_features.mm(self.visual_bias.weight)
-            opinion_visual_appearance = opinion_visual_appearance.squeeze().repeat(
-                user.size(-1), 1
+        Calculates the score for the given user-item interactions.
+        Output shape matches the shape of `users * items`
+
+        Args:
+            users: Users indices, as a Tensor.
+            items: Items indices, as a Tensor.
+            cache: Optional. A precalculated tuple of Tensors.
+
+        Returns:
+            Prediction score for each user-item pair.
+        """
+
+        def check_input_tensor(tensor: torch.Tensor, name: str) -> None:
+            if tensor.dim() != 2:
+                raise ValueError(f"{name} tensor must have exactly two dimensions")
+            elif not any(size == 1 for size in tensor.size()):
+                raise ValueError(f"{name} tensor must contain a singleton dimension")
+
+        check_input_tensor(users, "users")
+        if items is not None:
+            check_input_tensor(items, "items")
+
+        use_matmul = False
+        if items is None or (
+            users.size(0) == items.size(1) == 1 or users.size(1) == items.size(0) == 1
+        ):
+            use_matmul = True
+        elif users.size() != items.size():
+            raise ValueError(
+                "users and items must have equal shape or different singleton dimension"
             )
 
-            # x_ui
-            x_ui = (
-                i_bias
-                + torch.matmul(u_latent_factors, i_latent_factors.T)
-                + torch.matmul(u_visual_factors, visual_rating_space.T)
-                + opinion_visual_appearance
+        items_selector: Union[slice, torch.Tensor] = (
+            slice(None) if items is None else items
+        )
+        repeat_factors = (max(users.size()), 1) if use_matmul else (1, 1)
+
+        u_latent_factors = self.gamma_users(users).squeeze()
+        u_visual_factors = self.theta_users(users).squeeze()
+        if u_latent_factors.dim() == 1:
+            u_latent_factors = u_latent_factors.unsqueeze(0)
+            u_visual_factors = u_visual_factors.unsqueeze(0)
+
+        i_bias = self.beta_items.weight[items_selector]
+        i_bias = i_bias.squeeze().repeat(*repeat_factors)
+        i_latent_factors = self.gamma_items.weight[items_selector]
+        i_latent_factors = i_latent_factors.squeeze()
+        if i_latent_factors.dim() == 1:
+            i_latent_factors = i_latent_factors.unsqueeze(0)
+
+        if cache is None:
+            i_features = self.features.weight[items_selector]
+            visual_rating_space = i_features.matmul(self.embedding.weight)
+            opinion_visual_appearance = i_features.matmul(self.visual_bias.weight)
+        else:
+            visual_rating_space, opinion_visual_appearance = cache
+            visual_rating_space = visual_rating_space[items_selector]
+            opinion_visual_appearance = opinion_visual_appearance[items_selector]
+        opinion_visual_appearance = opinion_visual_appearance.squeeze().repeat(
+            *repeat_factors
+        )
+        visual_rating_space = visual_rating_space.squeeze()
+        if visual_rating_space.dim() == 1:
+            visual_rating_space = visual_rating_space.unsqueeze(0)
+
+        if use_matmul:
+            latent_component = torch.matmul(u_latent_factors, i_latent_factors.T)
+            visual_component = torch.matmul(u_visual_factors, visual_rating_space.T)
+        else:
+            latent_component = (
+                (u_latent_factors * i_latent_factors).sum(dim=1).unsqueeze(0)
+            )
+            visual_component = (
+                (u_visual_factors * visual_rating_space).sum(dim=1).unsqueeze(0)
             )
 
-            return cast(torch.Tensor, x_ui)
+        x_ui = i_bias + latent_component + visual_component + opinion_visual_appearance
+        if items is None:
+            if x_ui.size() != (users.size(0), i_bias.size(1)):
+                x_ui = x_ui.T
+        elif x_ui.size() == (users.size(1), items.size(0)):
+            x_ui = x_ui.T
+        return cast(torch.Tensor, x_ui)
 
     def reset_parameters(self) -> None:
         """Resets network weights.

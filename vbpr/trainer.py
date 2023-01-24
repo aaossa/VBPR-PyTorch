@@ -123,35 +123,31 @@ class Trainer:
 
         # Generate cache to speed-up recommendations
         cache = self.model.generate_cache()
-        indices_eval = dataloader.dataset.indices  # type: ignore[attr-defined]
-        src_dataset = dataloader.dataset.dataset  # type: ignore[attr-defined]
 
         # Tensor to accumulate results
         AUC_eval = torch.zeros(full_dataset.n_users, device=self.device)
 
-        for user in tqdm(range(full_dataset.n_users), desc="AUC on All Items"):
+        for ui, pi, _ in tqdm(dataloader, desc="AUC on All Items"):
             # Prepare inputs
-            left_out_items = torch.from_numpy(full_dataset.get_user_items(user))
-            items_eval = src_dataset.get_user_items(user, indices=indices_eval)
-            items_tensor = torch.tensor([items_eval], device=self.device)
-            user_tensor = torch.tensor([[user]], device=self.device)
+            ui = ui.to(self.device)
+            pi = pi.to(self.device)
 
             # Retrieve recommendations
-            x_u_eval = self.model.recommend(user_tensor, items_tensor).item()
-            user_recommendations = self.model.recommend(
-                user_tensor, cache=cache
-            ).squeeze()
-            max_possible = full_dataset.n_items - left_out_items.shape[0]
-            seen_recommendations = user_recommendations[left_out_items]
+            x_u_eval = self.model.recommend(ui, pi)
+            user_recommendations = self.model.recommend(ui, cache=cache)
 
-            # Prepare user results
-            count_eval = (
-                (x_u_eval > user_recommendations).sum()
-                - (x_u_eval > seen_recommendations).sum()
-            ).item()
+            for i, ui_item in enumerate(ui.squeeze().cpu().numpy()):
+                # Additional data
+                left_out_items = torch.from_numpy(full_dataset.get_user_items(ui_item))
+                max_possible = full_dataset.n_items - left_out_items.shape[0]
 
-            # Accumulate user results
-            AUC_eval[user] = 1.0 * count_eval / max_possible
+                # Prepare batch results
+                count_eval = (x_u_eval[i] > user_recommendations[i]).sum() - (
+                    x_u_eval[i] > user_recommendations[i, left_out_items]
+                ).sum()
+
+                # Accumulate batch results
+                AUC_eval[ui_item] = 1.0 * count_eval / max_possible
 
         # Display evaluation results
         auc = AUC_eval.mean().item()

@@ -133,13 +133,12 @@ class Trainer:
             # Prepare inputs
             left_out_items = torch.from_numpy(full_dataset.get_user_items(user))
             items_eval = src_dataset.get_user_items(user, indices=indices_eval)
-            user_tensor = torch.tensor([user], device=self.device)
+            items_tensor = torch.tensor([items_eval], device=self.device)
+            user_tensor = torch.tensor([[user]], device=self.device)
 
             # Retrieve recommendations
-            x_u_eval = self.model.recommend(
-                user_tensor, torch.tensor(items_eval, device=self.device)
-            ).item()
-            user_recommendations = self.model.recommend_all(
+            x_u_eval = self.model.recommend(user_tensor, items_tensor).item()
+            user_recommendations = self.model.recommend(
                 user_tensor, cache=cache
             ).squeeze()
             max_possible = full_dataset.n_items - left_out_items.shape[0]

@@ -58,6 +58,7 @@ class Trainer:
 
             if epoch % 10 == 0:
                 auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
+                auc_eval = self.evaluation(dataset, evaluation_dl)
 
                 if best_auc_valid < auc_valid:
                     best_auc_valid = auc_valid

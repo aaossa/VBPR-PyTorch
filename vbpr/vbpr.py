@@ -92,7 +92,7 @@ class VBPR(nn.Module):
 
         return cast(torch.Tensor, x_uij.squeeze())
 
-    @torch.no_grad()  # type: ignore[misc]
+    @torch.no_grad()
     def recommend(
         self,
         users: torch.Tensor,

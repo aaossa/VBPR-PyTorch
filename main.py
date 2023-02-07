@@ -22,7 +22,7 @@ if __name__ == "__main__":
     torch.manual_seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    n_epochs = 10
+    n_epochs = 200
     num_workers = cpu_count() or 0
 
     dataset, np_features = TradesyDataset.from_files(
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     n_users = dataset.n_users
     n_items = dataset.n_items
     features = torch.tensor(np_features, device=device)
-    dim_gamma = 10
+    dim_gamma = 20
     dim_theta = 20
     model = VBPR(n_users, n_items, features, dim_gamma, dim_theta)
     model = model.to(device)
@@ -59,7 +59,7 @@ if __name__ == "__main__":
             {"params": params_groups["lambda_beta"], "weight_decay": 0.01},
             {"params": params_groups["lambda_E"], "weight_decay": 0.0},
         ],
-        lr=0.001,
+        lr=0.0001,
     )
 
     trainer = Trainer(model, optimizer, device=device)

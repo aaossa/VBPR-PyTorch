@@ -81,6 +81,15 @@ class TradesyDataset(Dataset[TradesySample]):
             jid[i] = negative_item
         return uid, iid, jid
 
+    def get_item_users(
+        self, item: int, indices: Optional[List[int]] = None
+    ) -> npt.NDArray[np.int_]:
+        if indices is not None:
+            interactions = self.interactions.iloc[indices]
+        else:
+            interactions = self.interactions
+        return interactions.loc[(slice(None), item), :].index.get_level_values(0).values
+
     def get_user_items(
         self, user: int, indices: Optional[List[int]] = None
     ) -> npt.NDArray[np.int_]:

@@ -58,7 +58,15 @@ class Trainer:
 
             if epoch % 10 == 0:
                 auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
-                auc_eval = self.evaluation(dataset, evaluation_dl)
+                _ = self.evaluation(
+                    dataset, evaluation_dl, phase="Evaluation (All Items)"
+                )
+                _ = self.evaluation(
+                    dataset,
+                    evaluation_dl,
+                    phase="Evaluation (Cold Start)",
+                    cold_only=True,
+                )
 
                 if best_auc_valid < auc_valid:
                     best_auc_valid = auc_valid
@@ -69,10 +77,16 @@ class Trainer:
                     break
 
         # save_model()
-        auc_eval = self.evaluation(dataset, evaluation_dl)
+        auc_eval = self.evaluation(
+            dataset, evaluation_dl, phase="Evaluation (All Items)"
+        )
+        auc_eval_cold = self.evaluation(
+            dataset, evaluation_dl, phase="Evaluation (Cold Start)", cold_only=True
+        )
 
         print(f"[Validation] AUC = {best_auc_valid:.6f} (best epoch = {best_epoch})")
-        print(f"[Evaluation] AUC = {auc_eval:.6f} (final)")
+        print(f"[Evaluation] AUC = {auc_eval:.6f} (All Items)")
+        print(f"[Evaluation] AUC = {auc_eval_cold:.6f} (Cold Start)")
 
         return self.model
 
@@ -118,6 +132,7 @@ class Trainer:
         full_dataset: TradesyDataset,
         dataloader: DataLoader[TradesySample],
         phase: str = "Evaluation",
+        cold_only: bool = False,
     ) -> float:
         # Set correct model mode
         self.model = self.model.eval()
@@ -128,7 +143,7 @@ class Trainer:
         # Tensor to accumulate results
         AUC_eval = torch.zeros(full_dataset.n_users, device=self.device)
 
-        for ui, pi, _ in tqdm(dataloader, desc="AUC on All Items"):
+        for ui, pi, _ in tqdm(dataloader, desc=f"AUC on '{phase}'"):
             # Prepare inputs
             ui = ui.to(self.device)
             pi = pi.to(self.device)
@@ -137,7 +152,15 @@ class Trainer:
             x_u_eval = self.model.recommend(ui, pi)
             user_recommendations = self.model.recommend(ui, cache=cache)
 
-            for i, ui_item in enumerate(ui.squeeze().cpu().numpy()):
+            ui_array = ui.squeeze().cpu().numpy()
+            pi_array = pi.squeeze().cpu().numpy()
+
+            for i, (ui_item, pi_item) in enumerate(zip(ui_array, pi_array)):
+                # Skip evaluation if item is not "cold"
+                if cold_only and len(full_dataset.get_item_users(pi_item)) > 5:
+                    AUC_eval[ui_item] = -1.0
+                    continue
+
                 # Additional data
                 left_out_items = torch.from_numpy(full_dataset.get_user_items(ui_item))
                 max_possible = full_dataset.n_items - left_out_items.shape[0]
@@ -151,6 +174,6 @@ class Trainer:
                 AUC_eval[ui_item] = 1.0 * count_eval / max_possible
 
         # Display evaluation results
-        auc = AUC_eval.mean().item()
+        auc = AUC_eval[AUC_eval >= 0].mean().item()
         print(f"{phase.title()} AUC = {auc:.6f}")
         return auc

@@ -129,7 +129,7 @@ class Trainer:
         # Tensor to accumulate results
         AUC_eval = torch.zeros(full_dataset.n_users, device=self.device)
 
-        for ui, pi, _ in tqdm(dataloader, desc="AUC on All Items"):
+        for ui, pi, _ in tqdm(dataloader, desc=f"AUC on '{phase}'"):
             # Prepare inputs
             ui = ui.to(self.device)
             pi = pi.to(self.device)

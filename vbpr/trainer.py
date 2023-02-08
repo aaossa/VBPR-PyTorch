@@ -58,7 +58,15 @@ class Trainer:
 
             if epoch % 10 == 0:
                 auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
-                auc_eval = self.evaluation(dataset, evaluation_dl)
+                _ = self.evaluation(
+                    dataset, evaluation_dl, phase="Evaluation (All Items)"
+                )
+                _ = self.evaluation(
+                    dataset,
+                    evaluation_dl,
+                    phase="Evaluation (Cold Start)",
+                    cold_only=True,
+                )
 
                 if best_auc_valid < auc_valid:
                     best_auc_valid = auc_valid
@@ -69,10 +77,16 @@ class Trainer:
                     break
 
         # save_model()
-        auc_eval = self.evaluation(dataset, evaluation_dl)
+        auc_eval = self.evaluation(
+            dataset, evaluation_dl, phase="Evaluation (All Items)"
+        )
+        auc_eval_cold = self.evaluation(
+            dataset, evaluation_dl, phase="Evaluation (Cold Start)", cold_only=True
+        )
 
         print(f"[Validation] AUC = {best_auc_valid:.6f} (best epoch = {best_epoch})")
-        print(f"[Evaluation] AUC = {auc_eval:.6f} (final)")
+        print(f"[Evaluation] AUC = {auc_eval:.6f} (All Items)")
+        print(f"[Evaluation] AUC = {auc_eval_cold:.6f} (Cold Start)")
 
         return self.model
 

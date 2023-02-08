@@ -118,6 +118,7 @@ class Trainer:
         full_dataset: TradesyDataset,
         dataloader: DataLoader[TradesySample],
         phase: str = "Evaluation",
+        cold_only: bool = False,
     ) -> float:
         # Set correct model mode
         self.model = self.model.eval()
@@ -137,7 +138,15 @@ class Trainer:
             x_u_eval = self.model.recommend(ui, pi)
             user_recommendations = self.model.recommend(ui, cache=cache)
 
-            for i, ui_item in enumerate(ui.squeeze().cpu().numpy()):
+            ui_array = ui.squeeze().cpu().numpy()
+            pi_array = pi.squeeze().cpu().numpy()
+
+            for i, (ui_item, pi_item) in enumerate(zip(ui_array, pi_array)):
+                # Skip evaluation if item is not "cold"
+                if cold_only and len(full_dataset.get_item_users(pi_item)) > 5:
+                    AUC_eval[ui_item] = -1.0
+                    continue
+
                 # Additional data
                 left_out_items = torch.from_numpy(full_dataset.get_user_items(ui_item))
                 max_possible = full_dataset.n_items - left_out_items.shape[0]
@@ -151,6 +160,6 @@ class Trainer:
                 AUC_eval[ui_item] = 1.0 * count_eval / max_possible
 
         # Display evaluation results
-        auc = AUC_eval.mean().item()
+        auc = AUC_eval[AUC_eval >= 0].mean().item()
         print(f"{phase.title()} AUC = {auc:.6f}")
         return auc

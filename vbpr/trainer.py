@@ -14,12 +14,14 @@ class Trainer:
         self,
         model: VBPR,
         optimizer: optim.Optimizer,
+        scheduler: Optional[optim.lr_scheduler.ReduceLROnPlateau] = None,
         device: Optional[torch.device] = None,
     ):
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = model
         self.optimizer = optimizer
+        self.scheduler = scheduler
         self.device = device
 
     def setup_dataloaders(
@@ -55,9 +57,9 @@ class Trainer:
 
         for epoch in range(1, n_epochs + 1):
             self.training_step(epoch, training_dl)
+            auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
 
             if epoch % 10 == 0:
-                auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
                 _ = self.evaluation(
                     dataset, evaluation_dl, phase="Evaluation (All Items)"
                 )
@@ -75,6 +77,9 @@ class Trainer:
                 elif epoch >= (best_epoch + 20):
                     print("Overfitted maybe...")
                     break
+
+            if self.scheduler is not None:
+                self.scheduler.step(auc_valid)
 
         # save_model()
         auc_eval = self.evaluation(

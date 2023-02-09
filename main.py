@@ -61,6 +61,9 @@ if __name__ == "__main__":
         ],
         lr=0.0001,
     )
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="max", factor=0.6, patience=3, verbose=True
+    )
 
-    trainer = Trainer(model, optimizer, device=device)
+    trainer = Trainer(model, optimizer, scheduler=scheduler, device=device)
     trainer.fit(dataset, n_epochs=n_epochs, num_workers=num_workers)

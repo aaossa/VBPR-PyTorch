@@ -55,12 +55,18 @@ class Trainer:
         best_auc_valid = 0.0
         best_epoch = 0
 
-        epoch_pbar = tqdm(range(1, n_epochs + 1), desc="Epochs", unit="epoch")
-        epoch_pbar.set_postfix(best_auc=None, best_epoch=None)
-        train_pbar = tqdm(desc="Training")
-        train_pbar.set_postfix(acc=None, loss=None)
-        valid_pbar = tqdm(desc="Validation")
-        valid_pbar.set_postfix(auc=None)
+        epoch_pbar = tqdm(
+            range(1, n_epochs + 1),
+            desc="Epochs",
+            unit="epoch",
+            postfix=dict(best_auc=None, best_epoch=None),
+        )
+        train_pbar = tqdm(
+            desc="Training", total=len(training_dl), postfix=dict(acc=None, loss=None)
+        )
+        valid_pbar = tqdm(
+            desc="Validation", total=len(validation_dl), postfix=dict(auc=None)
+        )
 
         for epoch in epoch_pbar:
             training_metrics = self.training_step(training_dl, pbar=train_pbar)

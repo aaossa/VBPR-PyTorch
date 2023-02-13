@@ -55,7 +55,7 @@ class Trainer:
         best_auc_valid = 0.0
         best_epoch = 0
 
-        for epoch in range(1, n_epochs + 1):
+        for epoch in tqdm(range(1, n_epochs + 1), desc="Epochs", unit="epoch"):
             self.training_step(epoch, training_dl)
             auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
 

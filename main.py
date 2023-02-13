@@ -62,7 +62,7 @@ if __name__ == "__main__":
         lr=0.0001,
     )
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="max", factor=0.6, patience=3, verbose=True
+        optimizer, mode="max", factor=0.1, patience=10, verbose=True
     )
 
     trainer = Trainer(model, optimizer, scheduler=scheduler, device=device)

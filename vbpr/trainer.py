@@ -67,6 +67,16 @@ class Trainer:
         valid_pbar = tqdm(
             desc="Validation", total=len(validation_dl), postfix=dict(auc=None)
         )
+        eval_all_pbar = tqdm(
+            desc="Evaluation (All Items)",
+            total=len(evaluation_dl),
+            postfix=dict(auc=None),
+        )
+        eval_cold_pbar = tqdm(
+            desc="Evaluation (Cold Start)",
+            total=len(evaluation_dl),
+            postfix=dict(auc=None),
+        )
 
         for epoch in epoch_pbar:
             training_metrics = self.training_step(training_dl, pbar=train_pbar)
@@ -78,14 +88,15 @@ class Trainer:
             valid_pbar.set_postfix(auc=auc_valid)
 
             if epoch % 10 == 0:
-                auc_eval = self.evaluation(dataset, evaluation_dl)
-                print(f"Evaluation (All Items) AUC = {auc_eval:.6f}")
+                auc_eval = self.evaluation(dataset, evaluation_dl, pbar=eval_all_pbar)
+                eval_all_pbar.set_postfix(auc=auc_eval)
                 auc_eval_cold = self.evaluation(
                     dataset,
                     evaluation_dl,
                     cold_only=True,
+                    pbar=eval_cold_pbar,
                 )
-                print(f"Evaluation (Cold Start) AUC = {auc_eval_cold:.6f}")
+                eval_cold_pbar.set_postfix(auc=auc_eval_cold)
 
             if best_auc_valid < auc_valid:
                 best_auc_valid = auc_valid

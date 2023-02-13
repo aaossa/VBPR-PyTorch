@@ -55,7 +55,10 @@ class Trainer:
         best_auc_valid = 0.0
         best_epoch = 0
 
-        for epoch in tqdm(range(1, n_epochs + 1), desc="Epochs", unit="epoch"):
+        epoch_pbar = tqdm(range(1, n_epochs + 1), desc="Epochs", unit="epoch")
+        epoch_pbar.set_postfix(best_auc=None, best_epoch=None)
+
+        for epoch in epoch_pbar:
             self.training_step(epoch, training_dl)
             auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
 
@@ -73,6 +76,7 @@ class Trainer:
             if best_auc_valid < auc_valid:
                 best_auc_valid = auc_valid
                 best_epoch = epoch
+                epoch_pbar.set_postfix(best_auc=best_auc_valid, best_epoch=best_epoch)
                 # save_model()
             elif epoch >= (best_epoch + 20):
                 print("Overfitted maybe...")

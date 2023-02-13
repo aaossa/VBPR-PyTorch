@@ -66,18 +66,18 @@ class Trainer:
                 acc=training_metrics["accuracy"], loss=training_metrics["loss"]
             )
 
-            auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
+            auc_valid = self.evaluation(dataset, validation_dl)
+            print(f"Validation AUC = {auc_valid:.6f}")
 
             if epoch % 10 == 0:
-                _ = self.evaluation(
-                    dataset, evaluation_dl, phase="Evaluation (All Items)"
-                )
-                _ = self.evaluation(
+                auc_eval = self.evaluation(dataset, evaluation_dl)
+                print(f"Evaluation (All Items) AUC = {auc_eval:.6f}")
+                auc_eval_cold = self.evaluation(
                     dataset,
                     evaluation_dl,
-                    phase="Evaluation (Cold Start)",
                     cold_only=True,
                 )
+                print(f"Evaluation (Cold Start) AUC = {auc_eval_cold:.6f}")
 
             if best_auc_valid < auc_valid:
                 best_auc_valid = auc_valid
@@ -92,12 +92,8 @@ class Trainer:
                 self.scheduler.step(auc_valid)
 
         # save_model()
-        auc_eval = self.evaluation(
-            dataset, evaluation_dl, phase="Evaluation (All Items)"
-        )
-        auc_eval_cold = self.evaluation(
-            dataset, evaluation_dl, phase="Evaluation (Cold Start)", cold_only=True
-        )
+        auc_eval = self.evaluation(dataset, evaluation_dl)
+        auc_eval_cold = self.evaluation(dataset, evaluation_dl, cold_only=True)
 
         print(f"[Validation] AUC = {best_auc_valid:.6f} (best epoch = {best_epoch})")
         print(f"[Evaluation] AUC = {auc_eval:.6f} (All Items)")
@@ -157,7 +153,6 @@ class Trainer:
         self,
         full_dataset: TradesyDataset,
         dataloader: DataLoader[TradesySample],
-        phase: str = "Evaluation",
         cold_only: bool = False,
     ) -> float:
         # Set correct model mode
@@ -169,7 +164,7 @@ class Trainer:
         # Tensor to accumulate results
         AUC_eval = torch.zeros(full_dataset.n_users, device=self.device)
 
-        for ui, pi, _ in tqdm(dataloader, desc=f"AUC on '{phase}'"):
+        for ui, pi, _ in tqdm(dataloader, desc="Evaluation"):
             # Prepare inputs
             ui = ui.to(self.device)
             pi = pi.to(self.device)
@@ -201,5 +196,4 @@ class Trainer:
 
         # Display evaluation results
         auc = AUC_eval[AUC_eval >= 0].mean().item()
-        print(f"{phase.title()} AUC = {auc:.6f}")
         return auc

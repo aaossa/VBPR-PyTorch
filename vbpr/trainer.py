@@ -59,6 +59,8 @@ class Trainer:
         epoch_pbar.set_postfix(best_auc=None, best_epoch=None)
         train_pbar = tqdm(desc="Training")
         train_pbar.set_postfix(acc=None, loss=None)
+        valid_pbar = tqdm(desc="Validation")
+        valid_pbar.set_postfix(auc=None)
 
         for epoch in epoch_pbar:
             training_metrics = self.training_step(training_dl, pbar=train_pbar)
@@ -66,8 +68,8 @@ class Trainer:
                 acc=training_metrics["accuracy"], loss=training_metrics["loss"]
             )
 
-            auc_valid = self.evaluation(dataset, validation_dl)
-            print(f"Validation AUC = {auc_valid:.6f}")
+            auc_valid = self.evaluation(dataset, validation_dl, pbar=valid_pbar)
+            valid_pbar.set_postfix(auc=auc_valid)
 
             if epoch % 10 == 0:
                 auc_eval = self.evaluation(dataset, evaluation_dl)
@@ -154,6 +156,7 @@ class Trainer:
         full_dataset: TradesyDataset,
         dataloader: DataLoader[TradesySample],
         cold_only: bool = False,
+        pbar: Optional[tqdm[Any]] = None,
     ) -> float:
         # Set correct model mode
         self.model = self.model.eval()
@@ -164,7 +167,12 @@ class Trainer:
         # Tensor to accumulate results
         AUC_eval = torch.zeros(full_dataset.n_users, device=self.device)
 
-        for ui, pi, _ in tqdm(dataloader, desc="Evaluation"):
+        # Reset/create progress bar
+        if pbar is None:
+            pbar = tqdm(desc="Evaluation")
+        pbar.reset(total=len(dataloader))
+
+        for ui, pi, _ in dataloader:
             # Prepare inputs
             ui = ui.to(self.device)
             pi = pi.to(self.device)
@@ -193,6 +201,12 @@ class Trainer:
 
                 # Accumulate batch results
                 AUC_eval[ui_item] = 1.0 * count_eval / max_possible
+
+            # Update progress bar
+            pbar.update()
+
+        # Complete progress bar
+        pbar.refresh()
 
         # Display evaluation results
         auc = AUC_eval[AUC_eval >= 0].mean().item()

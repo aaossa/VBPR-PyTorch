@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import torch
 from torch import nn, optim
@@ -59,7 +59,12 @@ class Trainer:
         epoch_pbar.set_postfix(best_auc=None, best_epoch=None)
 
         for epoch in epoch_pbar:
-            self.training_step(epoch, training_dl)
+            training_metrics = self.training_step(training_dl)
+            print(
+                f"Training (epoch={epoch}) "
+                f"ACC = {training_metrics['accuracy']:.6f} "
+                f"(LOSS = {training_metrics['loss']:.6f})"
+            )
             auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
 
             if epoch % 10 == 0:
@@ -99,7 +104,7 @@ class Trainer:
 
         return self.model
 
-    def training_step(self, epoch: int, dataloader: DataLoader[TradesySample]) -> None:
+    def training_step(self, dataloader: DataLoader[TradesySample]) -> Dict[str, float]:
         # Set correct model mode
         self.model = self.model.train()
 
@@ -107,7 +112,7 @@ class Trainer:
         running_acc = torch.tensor(0, dtype=torch.int, device=self.device)
         running_loss = torch.tensor(0.0, dtype=torch.double, device=self.device)
 
-        for uid, iid, jid in tqdm(dataloader, desc=f"Training (epoch={epoch})"):
+        for uid, iid, jid in tqdm(dataloader, desc="Training"):
             # Prepare inputs
             uid = uid.to(self.device).squeeze()
             iid = iid.to(self.device).squeeze()
@@ -132,9 +137,7 @@ class Trainer:
         dataset_size: int = len(dataloader.dataset)  # type: ignore
         epoch_acc = running_acc.item() / dataset_size
         epoch_loss = running_loss.item() / dataset_size
-        print(
-            f"Training (epoch={epoch}) ACC = {epoch_acc:.6f} (LOSS = {epoch_loss:.6f})"
-        )
+        return {"accuracy": epoch_acc, "loss": epoch_loss}
 
     def evaluation(
         self,

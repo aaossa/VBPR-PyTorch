@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 from torch import nn, optim
@@ -57,14 +57,15 @@ class Trainer:
 
         epoch_pbar = tqdm(range(1, n_epochs + 1), desc="Epochs", unit="epoch")
         epoch_pbar.set_postfix(best_auc=None, best_epoch=None)
+        train_pbar = tqdm(desc="Training")
+        train_pbar.set_postfix(acc=None, loss=None)
 
         for epoch in epoch_pbar:
-            training_metrics = self.training_step(training_dl)
-            print(
-                f"Training (epoch={epoch}) "
-                f"ACC = {training_metrics['accuracy']:.6f} "
-                f"(LOSS = {training_metrics['loss']:.6f})"
+            training_metrics = self.training_step(training_dl, pbar=train_pbar)
+            train_pbar.set_postfix(
+                acc=training_metrics["accuracy"], loss=training_metrics["loss"]
             )
+
             auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
 
             if epoch % 10 == 0:
@@ -104,7 +105,9 @@ class Trainer:
 
         return self.model
 
-    def training_step(self, dataloader: DataLoader[TradesySample]) -> Dict[str, float]:
+    def training_step(
+        self, dataloader: DataLoader[TradesySample], pbar: Optional[tqdm[Any]] = None
+    ) -> Dict[str, float]:
         # Set correct model mode
         self.model = self.model.train()
 
@@ -112,7 +115,12 @@ class Trainer:
         running_acc = torch.tensor(0, dtype=torch.int, device=self.device)
         running_loss = torch.tensor(0.0, dtype=torch.double, device=self.device)
 
-        for uid, iid, jid in tqdm(dataloader, desc="Training"):
+        # Reset/create progress bar
+        if pbar is None:
+            pbar = tqdm(desc="Training")
+        pbar.reset(total=len(dataloader))
+
+        for uid, iid, jid in dataloader:
             # Prepare inputs
             uid = uid.to(self.device).squeeze()
             iid = iid.to(self.device).squeeze()
@@ -132,6 +140,12 @@ class Trainer:
             # Accumulate batch results
             running_acc.add_((outputs > 0).sum())
             running_loss.add_(loss.detach() * outputs.size(0))
+
+            # Update progress bar
+            pbar.update()
+
+        # Complete progress bar
+        pbar.refresh()
 
         # Display epoch results
         dataset_size: int = len(dataloader.dataset)  # type: ignore

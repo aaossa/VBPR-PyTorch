@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 from torch import nn, optim
@@ -55,39 +55,64 @@ class Trainer:
         best_auc_valid = 0.0
         best_epoch = 0
 
-        for epoch in range(1, n_epochs + 1):
-            self.training_step(epoch, training_dl)
-            auc_valid = self.evaluation(dataset, validation_dl, phase="Validation")
+        epoch_pbar = tqdm(
+            range(1, n_epochs + 1),
+            desc="Epochs",
+            unit="epoch",
+            postfix=dict(best_auc=None, best_epoch=None),
+        )
+        train_pbar = tqdm(
+            desc="Training", total=len(training_dl), postfix=dict(acc=None, loss=None)
+        )
+        valid_pbar = tqdm(
+            desc="Validation", total=len(validation_dl), postfix=dict(auc=None)
+        )
+        eval_all_pbar = tqdm(
+            desc="Evaluation (All Items)",
+            total=len(evaluation_dl),
+            postfix=dict(auc=None),
+        )
+        eval_cold_pbar = tqdm(
+            desc="Evaluation (Cold Start)",
+            total=len(evaluation_dl),
+            postfix=dict(auc=None),
+        )
+
+        for epoch in epoch_pbar:
+            training_metrics = self.training_step(training_dl, pbar=train_pbar)
+            train_pbar.set_postfix(
+                acc=training_metrics["accuracy"], loss=training_metrics["loss"]
+            )
+
+            auc_valid = self.evaluation(dataset, validation_dl, pbar=valid_pbar)
+            valid_pbar.set_postfix(auc=auc_valid)
 
             if epoch % 10 == 0:
-                _ = self.evaluation(
-                    dataset, evaluation_dl, phase="Evaluation (All Items)"
-                )
-                _ = self.evaluation(
+                auc_eval = self.evaluation(dataset, evaluation_dl, pbar=eval_all_pbar)
+                eval_all_pbar.set_postfix(auc=auc_eval)
+                auc_eval_cold = self.evaluation(
                     dataset,
                     evaluation_dl,
-                    phase="Evaluation (Cold Start)",
                     cold_only=True,
+                    pbar=eval_cold_pbar,
                 )
+                eval_cold_pbar.set_postfix(auc=auc_eval_cold)
 
-                if best_auc_valid < auc_valid:
-                    best_auc_valid = auc_valid
-                    best_epoch = epoch
-                    # save_model()
-                elif epoch >= (best_epoch + 20):
-                    print("Overfitted maybe...")
-                    break
+            if best_auc_valid < auc_valid:
+                best_auc_valid = auc_valid
+                best_epoch = epoch
+                epoch_pbar.set_postfix(best_auc=best_auc_valid, best_epoch=best_epoch)
+                # save_model()
+            elif epoch >= (best_epoch + 20):
+                print("Overfitted maybe...")
+                break
 
             if self.scheduler is not None:
                 self.scheduler.step(auc_valid)
 
         # save_model()
-        auc_eval = self.evaluation(
-            dataset, evaluation_dl, phase="Evaluation (All Items)"
-        )
-        auc_eval_cold = self.evaluation(
-            dataset, evaluation_dl, phase="Evaluation (Cold Start)", cold_only=True
-        )
+        auc_eval = self.evaluation(dataset, evaluation_dl)
+        auc_eval_cold = self.evaluation(dataset, evaluation_dl, cold_only=True)
 
         print(f"[Validation] AUC = {best_auc_valid:.6f} (best epoch = {best_epoch})")
         print(f"[Evaluation] AUC = {auc_eval:.6f} (All Items)")
@@ -95,7 +120,9 @@ class Trainer:
 
         return self.model
 
-    def training_step(self, epoch: int, dataloader: DataLoader[TradesySample]) -> None:
+    def training_step(
+        self, dataloader: DataLoader[TradesySample], pbar: Optional[tqdm[Any]] = None
+    ) -> Dict[str, float]:
         # Set correct model mode
         self.model = self.model.train()
 
@@ -103,7 +130,12 @@ class Trainer:
         running_acc = torch.tensor(0, dtype=torch.int, device=self.device)
         running_loss = torch.tensor(0.0, dtype=torch.double, device=self.device)
 
-        for uid, iid, jid in tqdm(dataloader, desc=f"Training (epoch={epoch})"):
+        # Reset/create progress bar
+        if pbar is None:
+            pbar = tqdm(desc="Training")
+        pbar.reset(total=len(dataloader))
+
+        for uid, iid, jid in dataloader:
             # Prepare inputs
             uid = uid.to(self.device).squeeze()
             iid = iid.to(self.device).squeeze()
@@ -124,20 +156,24 @@ class Trainer:
             running_acc.add_((outputs > 0).sum())
             running_loss.add_(loss.detach() * outputs.size(0))
 
+            # Update progress bar
+            pbar.update()
+
+        # Complete progress bar
+        pbar.refresh()
+
         # Display epoch results
         dataset_size: int = len(dataloader.dataset)  # type: ignore
         epoch_acc = running_acc.item() / dataset_size
         epoch_loss = running_loss.item() / dataset_size
-        print(
-            f"Training (epoch={epoch}) ACC = {epoch_acc:.6f} (LOSS = {epoch_loss:.6f})"
-        )
+        return {"accuracy": epoch_acc, "loss": epoch_loss}
 
     def evaluation(
         self,
         full_dataset: TradesyDataset,
         dataloader: DataLoader[TradesySample],
-        phase: str = "Evaluation",
         cold_only: bool = False,
+        pbar: Optional[tqdm[Any]] = None,
     ) -> float:
         # Set correct model mode
         self.model = self.model.eval()
@@ -148,7 +184,12 @@ class Trainer:
         # Tensor to accumulate results
         AUC_eval = torch.zeros(full_dataset.n_users, device=self.device)
 
-        for ui, pi, _ in tqdm(dataloader, desc=f"AUC on '{phase}'"):
+        # Reset/create progress bar
+        if pbar is None:
+            pbar = tqdm(desc="Evaluation")
+        pbar.reset(total=len(dataloader))
+
+        for ui, pi, _ in dataloader:
             # Prepare inputs
             ui = ui.to(self.device)
             pi = pi.to(self.device)
@@ -178,7 +219,12 @@ class Trainer:
                 # Accumulate batch results
                 AUC_eval[ui_item] = 1.0 * count_eval / max_possible
 
+            # Update progress bar
+            pbar.update()
+
+        # Complete progress bar
+        pbar.refresh()
+
         # Display evaluation results
         auc = AUC_eval[AUC_eval >= 0].mean().item()
-        print(f"{phase.title()} AUC = {auc:.6f}")
         return auc

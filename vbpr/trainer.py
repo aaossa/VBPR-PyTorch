@@ -70,13 +70,13 @@ class Trainer:
                     cold_only=True,
                 )
 
-                if best_auc_valid < auc_valid:
-                    best_auc_valid = auc_valid
-                    best_epoch = epoch
-                    # save_model()
-                elif epoch >= (best_epoch + 20):
-                    print("Overfitted maybe...")
-                    break
+            if best_auc_valid < auc_valid:
+                best_auc_valid = auc_valid
+                best_epoch = epoch
+                # save_model()
+            elif epoch >= (best_epoch + 20):
+                print("Overfitted maybe...")
+                break
 
             if self.scheduler is not None:
                 self.scheduler.step(auc_valid)

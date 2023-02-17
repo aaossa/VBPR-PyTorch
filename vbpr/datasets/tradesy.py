@@ -7,7 +7,7 @@ import json
 import struct
 from functools import cached_property
 from pathlib import Path
-from typing import List, Optional, Tuple, Type, Union
+from typing import List, Optional, Tuple, Type, Union, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -83,23 +83,13 @@ class TradesyDataset(Dataset[TradesySample]):
             jid[i] = negative_item
         return uid, iid, jid
 
-    def get_item_users(
-        self, item: int, indices: Optional[List[int]] = None
-    ) -> npt.NDArray[np.int_]:
-        if indices is not None:
-            interactions = self.interactions.iloc[indices]
-        else:
-            interactions = self.interactions
-        return interactions.loc[(slice(None), item), :].index.get_level_values(0).values
+    def get_item_users(self, item: int) -> npt.NDArray[np.int_]:
+        item_selector = cast(npt.NDArray[np.bool_], self.iid == item)
+        return self.uid[item_selector]
 
-    def get_user_items(
-        self, user: int, indices: Optional[List[int]] = None
-    ) -> npt.NDArray[np.int_]:
-        if indices is not None:
-            interactions = self.interactions.iloc[indices]
-        else:
-            interactions = self.interactions
-        return interactions.loc[(user,), :].index.values
+    def get_user_items(self, user: int) -> npt.NDArray[np.int_]:
+        user_selector = cast(npt.NDArray[np.bool_], self.uid == user)
+        return self.iid[user_selector]
 
     def __len__(self) -> int:
         return len(self.interactions)

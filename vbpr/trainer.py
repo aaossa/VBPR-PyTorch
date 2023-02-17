@@ -111,8 +111,10 @@ class Trainer:
                 self.scheduler.step(auc_valid)
 
         # save_model()
-        auc_eval = self.evaluation(dataset, evaluation_dl)
-        auc_eval_cold = self.evaluation(dataset, evaluation_dl, cold_only=True)
+        auc_eval = self.evaluation(dataset, evaluation_dl, pbar=eval_all_pbar)
+        auc_eval_cold = self.evaluation(
+            dataset, evaluation_dl, cold_only=True, pbar=eval_cold_pbar
+        )
 
         print(f"[Validation] AUC = {best_auc_valid:.6f} (best epoch = {best_epoch})")
         print(f"[Evaluation] AUC = {auc_eval:.6f} (All Items)")

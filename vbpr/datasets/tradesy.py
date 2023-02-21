@@ -7,7 +7,7 @@ import json
 import struct
 from functools import cached_property
 from pathlib import Path
-from typing import List, Optional, Tuple, Type, Union
+from typing import List, Optional, Tuple, Type, Union, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -32,8 +32,9 @@ class TradesyDataset(Dataset[TradesySample]):
         self.__rng_seed = random_seed
         self.__rng = np.random.default_rng(seed=self.__rng_seed)
         interactions = interactions.sort_values(["uid", "iid"])
-        interactions = interactions.set_index(["uid", "iid"])
-        self.interactions = interactions
+        self.uid: npt.NDArray[np.int_] = interactions["uid"].to_numpy(copy=True)
+        self.iid: npt.NDArray[np.int_] = interactions["iid"].to_numpy(copy=True)
+        self.interactions = interactions.set_index(["uid", "iid"])
 
     @cached_property
     def n_users(self) -> int:
@@ -63,16 +64,17 @@ class TradesyDataset(Dataset[TradesySample]):
     def __getitem__(
         self, idx: Union[npt.NDArray[np.int_], torch.Tensor]
     ) -> TradesySample:
-        idx_seq: npt.NDArray[np.int_]
-        if isinstance(idx, torch.Tensor):
-            idx_seq = idx.numpy()
-        elif isinstance(idx, int):
-            idx_seq = np.array([idx])
+        if isinstance(idx, int):
+            uid = np.array([self.uid[idx]])
+            iid = np.array([self.iid[idx]])
         else:
-            idx_seq = idx
-        indexes = self.interactions.iloc[idx_seq].index
-        uid = indexes.get_level_values(0).values
-        iid = indexes.get_level_values(1).values
+            idx_seq: npt.NDArray[np.int_]
+            if isinstance(idx, torch.Tensor):
+                idx_seq = idx.numpy()
+            else:
+                idx_seq = idx
+            uid = self.uid[idx_seq]
+            iid = self.iid[idx_seq]
         jid = np.empty_like(iid)
         for i, u in enumerate(uid):
             negative_item = self.__rng.integers(self.n_items, size=1)[0]
@@ -81,23 +83,13 @@ class TradesyDataset(Dataset[TradesySample]):
             jid[i] = negative_item
         return uid, iid, jid
 
-    def get_item_users(
-        self, item: int, indices: Optional[List[int]] = None
-    ) -> npt.NDArray[np.int_]:
-        if indices is not None:
-            interactions = self.interactions.iloc[indices]
-        else:
-            interactions = self.interactions
-        return interactions.loc[(slice(None), item), :].index.get_level_values(0).values
+    def get_item_users(self, item: int) -> npt.NDArray[np.int_]:
+        item_selector = cast(npt.NDArray[np.bool_], self.iid == item)
+        return self.uid[item_selector]
 
-    def get_user_items(
-        self, user: int, indices: Optional[List[int]] = None
-    ) -> npt.NDArray[np.int_]:
-        if indices is not None:
-            interactions = self.interactions.iloc[indices]
-        else:
-            interactions = self.interactions
-        return interactions.loc[(user,), :].index.values
+    def get_user_items(self, user: int) -> npt.NDArray[np.int_]:
+        user_selector = cast(npt.NDArray[np.bool_], self.uid == user)
+        return self.iid[user_selector]
 
     def __len__(self) -> int:
         return len(self.interactions)

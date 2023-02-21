@@ -110,9 +110,16 @@ class Trainer:
             if self.scheduler is not None:
                 self.scheduler.step(auc_valid)
 
+        train_pbar.close()
+        valid_pbar.close()
+
         # save_model()
-        auc_eval = self.evaluation(dataset, evaluation_dl)
-        auc_eval_cold = self.evaluation(dataset, evaluation_dl, cold_only=True)
+        auc_eval = self.evaluation(dataset, evaluation_dl, pbar=eval_all_pbar)
+        eval_all_pbar.close()
+        auc_eval_cold = self.evaluation(
+            dataset, evaluation_dl, cold_only=True, pbar=eval_cold_pbar
+        )
+        eval_cold_pbar.close()
 
         print(f"[Validation] AUC = {best_auc_valid:.6f} (best epoch = {best_epoch})")
         print(f"[Evaluation] AUC = {auc_eval:.6f} (All Items)")

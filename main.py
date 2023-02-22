@@ -7,6 +7,7 @@ from typing import Dict, List, TypedDict
 
 import numpy as np
 import torch
+import wandb
 from torch import nn, optim
 
 from vbpr import VBPR, Trainer
@@ -55,6 +56,7 @@ if __name__ == "__main__":
             "patience": 10,
         },
     }
+    wandb.init(project="vbpr-tradesy", config=config)
 
     random.seed(RANDOM_SEED)
     torch.manual_seed(RANDOM_SEED)
@@ -117,4 +119,6 @@ if __name__ == "__main__":
     )
 
     trainer = Trainer(model, optimizer, scheduler=scheduler, device=device)
-    trainer.fit(dataset, n_epochs=n_epochs, num_workers=num_workers)
+    trainer.fit(
+        dataset, n_epochs=n_epochs, num_workers=num_workers, wandb_callback=wandb.log
+    )

@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Protocol, Tuple
 
 import torch
 from torch import nn, optim
@@ -7,6 +7,17 @@ from tqdm.autonotebook import tqdm
 
 from .datasets import TradesyDataset, TradesySample
 from .vbpr import VBPR
+
+
+class WandBCallback(Protocol):
+    def __call__(
+        self,
+        data: Dict[str, Any],
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+        sync: Optional[bool] = None,
+    ) -> None:
+        ...
 
 
 class Trainer:
@@ -46,8 +57,14 @@ class Trainer:
         return training_dl, validation_dl, evaluation_dl
 
     def fit(
-        self, dataset: TradesyDataset, n_epochs: int = 1, **dataloaders_kwargs: int
+        self,
+        dataset: TradesyDataset,
+        n_epochs: int = 1,
+        wandb_callback: Optional[WandBCallback] = None,
+        **dataloaders_kwargs: int,
     ) -> nn.Module:
+        if not wandb_callback:
+            wandb_callback = lambda *a, **k: None  # noqa: E731
         training_dl, validation_dl, evaluation_dl = self.setup_dataloaders(
             dataset, **dataloaders_kwargs
         )
@@ -83,9 +100,11 @@ class Trainer:
             train_pbar.set_postfix(
                 acc=training_metrics["accuracy"], loss=training_metrics["loss"]
             )
+            wandb_callback({"training": training_metrics}, step=epoch)
 
             auc_valid = self.evaluation(dataset, validation_dl, pbar=valid_pbar)
             valid_pbar.set_postfix(auc=auc_valid)
+            wandb_callback({"validation": auc_valid}, step=epoch)
 
             if epoch % 10 == 0:
                 auc_eval = self.evaluation(dataset, evaluation_dl, pbar=eval_all_pbar)
@@ -97,6 +116,9 @@ class Trainer:
                     pbar=eval_cold_pbar,
                 )
                 eval_cold_pbar.set_postfix(auc=auc_eval_cold)
+                wandb_callback(
+                    {"evaluation": {"all": auc_eval, "cold": auc_eval_cold}}, step=epoch
+                )
 
             if best_auc_valid < auc_valid:
                 best_auc_valid = auc_valid
@@ -120,6 +142,9 @@ class Trainer:
             dataset, evaluation_dl, cold_only=True, pbar=eval_cold_pbar
         )
         eval_cold_pbar.close()
+        wandb_callback(
+            {"evaluation": {"all": auc_eval, "cold": auc_eval_cold}}, step=epoch
+        )
 
         print(f"[Validation] AUC = {best_auc_valid:.6f} (best epoch = {best_epoch})")
         print(f"[Evaluation] AUC = {auc_eval:.6f} (All Items)")

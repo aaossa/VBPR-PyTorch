@@ -37,7 +37,7 @@ if __name__ == "__main__":
         "model": "VBPR",
         "dataset": "Tradesy",
         # Hyperparameters
-        "n_epochs": 200,
+        "n_epochs": 100,
         # Model
         "model_params": {
             "dim_gamma": 20,
@@ -45,15 +45,15 @@ if __name__ == "__main__":
         },
         # Optimizer
         "optimizer": {
-            "lr": 1e-04,
+            "lr": 5e-04,
             "lambda_theta": 1.0,
             "lambda_beta": 0.01,
             "lambda_E": 0.0,
         },
         # Scheduler
         "scheduler": {
-            "factor": 0.1,
-            "patience": 10,
+            "factor": 0.3,
+            "patience": 5,
         },
     }
     wandb.init(project="vbpr-tradesy", config=config)

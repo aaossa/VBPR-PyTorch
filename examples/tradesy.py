@@ -1,4 +1,4 @@
-"""This is a demo training script"""
+"""Training VBPR on the Tradesy dataset"""
 
 import random
 from os import cpu_count

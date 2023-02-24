@@ -1,8 +1,16 @@
-<img src="./vbpr.png" width="400png"></img>
+![VBPR model architecture](https://raw.githubusercontent.com/aaossa/VBPR-PyTorch/main/vbpr.png?raw=True)
 
 # VBPR-PyTorch
 
 Implementation of VBPR, a visual recommender model, from the paper ["VBPR: Visual Bayesian Personalized Ranking from Implicit Feedback"](https://arxiv.org/abs/1510.01784).
+
+The implementation has a good enough training time: ~50 seconds per epoch in a regular Google Colab machine (GPU, free) in the Tradesy dataset (+410k interactions, using `batch_size=64`). Also, the whole source code includes typing annotations that should help to improve readibility and detect unexpected behaviors. Finally, the performance reached by the implementation is similar to the metrics reported in the paper:
+
+| **Dataset** | **Setting** | **Paper** | **This repo** | **% diff.** |
+|-------------|-------------|:---------:|:-------------:|:-----------:|
+| Tradesy     | All Items   |   0.7834  |     0.7628    |    -2.6%    |
+| Tradesy     | Cold Start  |   0.7594  |     0.7489    |    -1.4%    |
+
 
 ```bibtex
 @inproceedings{he2016vbpr,
@@ -14,6 +22,58 @@ Implementation of VBPR, a visual recommender model, from the paper ["VBPR: Visua
   year={2016}
 }
 ```
+
+
+## Install
+
+```
+pip install vbpr-pytorch
+```
+
+You can also install `vbpr-pytorch` with their optional dependencies:
+
+```
+# Development dependencies
+pip install vbpr-pytorch[dev]
+```
+
+```
+# Weight and biases dependency
+pip install vbpr-pytorch[wandb]
+```
+
+
+## Usage
+
+This is a simplified version of the training script on the Tradesy dataset:
+
+```python
+import torch
+from torch import optim
+from vbpr import VBPR, Trainer
+from vbpr.datasets import TradesyDataset
+
+
+dataset, features = TradesyDataset.from_files(
+    "/path/to/transactions.json.gz",
+    "/path/to/features.b",
+)
+model = VBPR(
+    dataset.n_users,
+    dataset.n_items,
+    torch.tensor(features),
+    dim_gamma=20,
+    dim_theta=20,
+)
+optimizer = optim.SGD(model.parameters(), lr=5e-04)
+
+trainer = Trainer(model, optimizer)
+trainer.fit(dataset, n_epochs=10)
+
+```
+
+You can use a custom dataset by writing a subclass of `TradesyDataset` or making sure the the `__getitem__` method of your dataset returns a tuple containing: user ID, positive item ID, and negative item ID.
+
 
 ## Notes
 

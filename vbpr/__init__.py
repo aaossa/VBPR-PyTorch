@@ -5,3 +5,5 @@ __all__ = [
     "Trainer",
     "VBPR",
 ]
+
+__version__ = "0.0.1"
